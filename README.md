@@ -1,5 +1,9 @@
 # N.O.V.A. — Neural Operational Virtual Assistant
 
+<p align="center">
+  <img src="assets/logo_full.jpg" alt="N.O.V.A. Logo" width="340" style="border-radius: 16px; box-shadow: 0 0 30px rgba(0, 240, 255, 0.3);">
+</p>
+
 > *"Understand → Remember → Reason → Act → Learn → Adapt"*  
 > **Architect:** Lead Engineer Aken Sanketh | **Primary Companion:** Anushi Ranshika Peiris  
 
