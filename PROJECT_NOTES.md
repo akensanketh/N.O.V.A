@@ -18,7 +18,8 @@
 
 ## ✅ 2. What We Have Done So Far
 
-### 🎨 UI/UX Cyber-Glassmorphism Overhaul
+### 🎨 UI/UX Cyber-Glassmorphism Overhaul & Brand Identity
+- **Logo & Identity:** Designed modern Cyber-Glassmorphic logo badge and quantum orbital icon mark (`assets/logo_full.jpg`, `assets/logo_icon.jpg`, `assets/icon.png`, `favicon.png`). Integrated live animated glowing logo into `#headerOrb` and repository README banner.
 - **Design System:** Created a high-end cyber glassmorphism design featuring neon cyan (`#00f0ff`), hot pink (`#ff007f`), electric violet (`#8b5cf6`), glass backdrop blur filters, and glowing interactive elements.
 - **Visualizer Core:** Built an animated AI visualizer orb (`#novaCore`) with dynamic pulsing states (`idle`, `thinking`, `speaking`).
 - **Interactive Widgets:** Integrated Mode Selector Pills, Focus Timer, Task/Checklist Manager, and Glass Modal windows for memory & settings configuration.
