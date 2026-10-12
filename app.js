@@ -1061,30 +1061,86 @@ ${pmSummary}`;
       let replyText = null;
       let lastErrorMsg = "";
 
-      const endpointsToTry = ["/api/nvidia/chat/completions"];
-      if (window.location.protocol === "file:") {
-        endpointsToTry.push("https://integrate.api.nvidia.com/v1/chat/completions");
+      const isLocalhost = window.location.hostname === "localhost" || 
+                          window.location.hostname === "127.0.0.1" || 
+                          window.location.hostname === "";
+
+      const endpointsToTry = [];
+
+      // 1. Local Vite Proxy (works when running locally with npm run dev)
+      if (isLocalhost) {
+        endpointsToTry.push({
+          type: "direct",
+          url: "/api/nvidia/chat/completions"
+        });
+      }
+
+      // 2. Direct NVIDIA NIM Chat completions API
+      endpointsToTry.push({
+        type: "direct",
+        url: "https://integrate.api.nvidia.com/v1/chat/completions"
+      });
+
+      // 3. Reliable CORS Proxy for static hosting (GitHub Pages)
+      endpointsToTry.push({
+        type: "direct",
+        url: "https://corsproxy.io/?url=" + encodeURIComponent("https://integrate.api.nvidia.com/v1/chat/completions")
+      });
+
+      // 4. Google Apps Script serverless proxy (if user connected cloud memory)
+      if (state.sheetsUrl) {
+        endpointsToTry.push({
+          type: "appsScript",
+          url: resolveSheetsUrl(state.sheetsUrl)
+        });
+      }
+
+      // 5. Relative proxy fallback for custom deployment hosts
+      if (!isLocalhost) {
+        endpointsToTry.push({
+          type: "direct",
+          url: "/api/nvidia/chat/completions"
+        });
       }
 
       for (const modelName of nvidiaModels) {
         if (replyText) break;
-        for (const endpoint of endpointsToTry) {
+        for (const target of endpointsToTry) {
           try {
-            console.log(`[NVIDIA NIM] Requesting model ${modelName} via ${endpoint} using key ${nvidiaApiKey.slice(0, 10)}...`);
-            const response = await fetch(endpoint, {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${nvidiaApiKey.trim()}`,
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                model: modelName,
-                messages: openAiMessages,
-                temperature: temperature,
-                max_tokens: 800,
-                top_p: 1
-              })
-            });
+            console.log(`[NVIDIA NIM] Requesting model ${modelName} via ${target.url} using key ${nvidiaApiKey.slice(0, 10)}...`);
+            let response;
+            if (target.type === "appsScript") {
+              response = await fetch(target.url, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({
+                  action: "chatNvidia",
+                  apiKey: nvidiaApiKey.trim(),
+                  nvidiaPayload: {
+                    model: modelName,
+                    messages: openAiMessages,
+                    temperature: temperature,
+                    max_tokens: 800,
+                    top_p: 1
+                  }
+                })
+              });
+            } else {
+              response = await fetch(target.url, {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${nvidiaApiKey.trim()}`,
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                  model: modelName,
+                  messages: openAiMessages,
+                  temperature: temperature,
+                  max_tokens: 800,
+                  top_p: 1
+                })
+              });
+            }
 
             if (response.ok) {
               const data = await response.json();
@@ -1092,17 +1148,17 @@ ${pmSummary}`;
                 const msgContent = data.choices[0].message.content || data.choices[0].message.reasoning_content;
                 if (msgContent && msgContent.trim()) {
                   replyText = msgContent.trim();
-                  console.log(`[NVIDIA NIM Success] Model: ${modelName}`);
+                  console.log(`[NVIDIA NIM Success] Model: ${modelName} via ${target.url}`);
                   break;
                 }
               }
             } else {
               const errText = await response.text().catch(() => "");
-              console.warn(`[NVIDIA NIM ${modelName} Failed ${response.status}]`, errText);
+              console.warn(`[NVIDIA NIM ${modelName} Failed ${response.status} via ${target.url}]`, errText);
               lastErrorMsg = `HTTP ${response.status}: ${errText.slice(0, 100)}`;
             }
           } catch (err) {
-            console.warn(`[NVIDIA NIM Endpoint ${endpoint} Exception]`, err.message);
+            console.warn(`[NVIDIA NIM Endpoint ${target.url} Exception]`, err.message);
             lastErrorMsg = err.message;
           }
         }
@@ -1620,7 +1676,7 @@ Just reply right here in chat, and I'll automatically log everything into your N
 
   function setupEventListeners() {
     // Mode Buttons Header
-    DOM.modeSelector.addEventListener("click", (e) => {
+    DOM.modeSelector?.addEventListener("click", (e) => {
       const btn = e.target.closest(".mode-btn");
       if (btn && btn.dataset.mode) {
         if (btn.dataset.mode === "diagnostics") {
@@ -1635,12 +1691,12 @@ Just reply right here in chat, and I'll automatically log everything into your N
     });
 
     // Chat Input Keyboard and Autocomplete dropdown
-    DOM.chatInput.addEventListener("input", (e) => {
+    DOM.chatInput?.addEventListener("input", (e) => {
       const val = e.target.value;
       if (val === "/") {
-        DOM.commandsDropdown.classList.remove("hidden");
+        DOM.commandsDropdown?.classList.remove("hidden");
       } else if (!val.startsWith("/")) {
-        DOM.commandsDropdown.classList.add("hidden");
+        DOM.commandsDropdown?.classList.add("hidden");
       }
 
       // Auto-expand textarea height
@@ -1648,31 +1704,31 @@ Just reply right here in chat, and I'll automatically log everything into your N
       DOM.chatInput.style.height = Math.min(DOM.chatInput.scrollHeight, 120) + "px";
     });
 
-    DOM.chatInput.addEventListener("keydown", (e) => {
+    DOM.chatInput?.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        DOM.commandsDropdown.classList.add("hidden");
+        DOM.commandsDropdown?.classList.add("hidden");
         handleSendMessage();
       }
     });
 
-    DOM.sendBtn.addEventListener("click", () => {
-      DOM.commandsDropdown.classList.add("hidden");
+    DOM.sendBtn?.addEventListener("click", () => {
+      DOM.commandsDropdown?.classList.add("hidden");
       handleSendMessage();
     });
 
     // Commands Dropdown Items
-    DOM.commandsDropdown.addEventListener("click", (e) => {
+    DOM.commandsDropdown?.addEventListener("click", (e) => {
       const btn = e.target.closest(".command-item");
       if (btn && btn.dataset.cmd) {
         const cmd = btn.dataset.cmd;
-        DOM.commandsDropdown.classList.add("hidden");
+        DOM.commandsDropdown?.classList.add("hidden");
         if (cmd === "/diagnostics") {
-          DOM.chatInput.value = "";
+          if (DOM.chatInput) DOM.chatInput.value = "";
           triggerDiagnostics();
         } else {
           state.currentMode = cmd.replace("/", "");
-          DOM.chatInput.value = "";
+          if (DOM.chatInput) DOM.chatInput.value = "";
           renderModeUI();
           renderPromptChips();
           saveLocalState();
@@ -1681,87 +1737,87 @@ Just reply right here in chat, and I'll automatically log everything into your N
     });
 
     // File Attachment
-    DOM.attachFileBtn.addEventListener("click", () => DOM.fileInput.click());
-    DOM.fileInput.addEventListener("change", (e) => {
+    DOM.attachFileBtn?.addEventListener("click", () => DOM.fileInput?.click());
+    DOM.fileInput?.addEventListener("change", (e) => {
       if (e.target.files && e.target.files.length > 0) {
         processFiles(e.target.files);
       }
     });
 
     // Mic Button
-    DOM.micBtn.addEventListener("click", () => {
+    DOM.micBtn?.addEventListener("click", () => {
       toggleVoiceMode(!state.voiceActive);
     });
 
-    DOM.voiceToggleCheckbox.addEventListener("change", (e) => {
+    DOM.voiceToggleCheckbox?.addEventListener("change", (e) => {
       toggleVoiceMode(e.target.checked);
     });
 
     // Drag and Drop
     window.addEventListener("dragover", (e) => {
       e.preventDefault();
-      DOM.dragDropOverlay.classList.remove("hidden");
+      DOM.dragDropOverlay?.classList.remove("hidden");
     });
-    DOM.dragDropOverlay.addEventListener("dragleave", () => {
-      DOM.dragDropOverlay.classList.add("hidden");
+    DOM.dragDropOverlay?.addEventListener("dragleave", () => {
+      DOM.dragDropOverlay?.classList.add("hidden");
     });
-    DOM.dragDropOverlay.addEventListener("drop", (e) => {
+    DOM.dragDropOverlay?.addEventListener("drop", (e) => {
       e.preventDefault();
-      DOM.dragDropOverlay.classList.add("hidden");
+      DOM.dragDropOverlay?.classList.add("hidden");
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         processFiles(e.dataTransfer.files);
       }
     });
 
     // Timer Controls
-    DOM.timerToggleBtn.addEventListener("click", () => {
+    DOM.timerToggleBtn?.addEventListener("click", () => {
       if (state.timerActive) pauseTimer();
       else startTimer();
     });
-    DOM.timerResetBtn.addEventListener("click", resetTimer);
-    DOM.timerSwitchBtn.addEventListener("click", switchTimerMode);
+    DOM.timerResetBtn?.addEventListener("click", resetTimer);
+    DOM.timerSwitchBtn?.addEventListener("click", switchTimerMode);
 
     // Tasks Form
-    DOM.taskForm.addEventListener("submit", (e) => {
+    DOM.taskForm?.addEventListener("submit", (e) => {
       e.preventDefault();
-      const txt = DOM.taskInput.value.trim();
+      const txt = DOM.taskInput ? DOM.taskInput.value.trim() : "";
       if (!txt) return;
       state.studentTasks.push({ id: Date.now().toString(), text: txt, completed: false });
-      DOM.taskInput.value = "";
+      if (DOM.taskInput) DOM.taskInput.value = "";
       saveLocalState();
       renderTasks();
     });
 
     // Reminders Form
-    DOM.reminderForm.addEventListener("submit", (e) => {
+    DOM.reminderForm?.addEventListener("submit", (e) => {
       e.preventDefault();
-      const title = DOM.reminderTitleInput.value.trim();
-      const time = DOM.reminderTimeInput.value.trim();
+      const title = DOM.reminderTitleInput ? DOM.reminderTitleInput.value.trim() : "";
+      const time = DOM.reminderTimeInput ? DOM.reminderTimeInput.value.trim() : "";
       if (!title) return;
       state.reminders.push({ id: "r-" + Date.now(), title, time: time || "Today", completed: false });
-      DOM.reminderTitleInput.value = "";
-      DOM.reminderTimeInput.value = "";
+      if (DOM.reminderTitleInput) DOM.reminderTitleInput.value = "";
+      if (DOM.reminderTimeInput) DOM.reminderTimeInput.value = "";
       saveLocalState();
       renderReminders();
     });
 
     // Memory Reset
-    DOM.resetMemoryBtn.addEventListener("click", resetMemory);
-    DOM.quickResetBtn.addEventListener("click", resetMemory);
+    DOM.resetMemoryBtn?.addEventListener("click", resetMemory);
+    DOM.quickResetBtn?.addEventListener("click", resetMemory);
 
     // Error banner close
-    DOM.closeErrorBannerBtn.addEventListener("click", hideApiError);
+    DOM.closeErrorBannerBtn?.addEventListener("click", hideApiError);
 
     // Sidebar Mobile Toggle
-    DOM.sidebarToggleBtn.addEventListener("click", () => {
-      DOM.sidebarPanel.classList.toggle("open");
+    DOM.sidebarToggleBtn?.addEventListener("click", () => {
+      DOM.sidebarPanel?.classList.toggle("open");
     });
 
     // Modals Open/Close
-    DOM.loreModalBtn.addEventListener("click", openLoreModal);
-    DOM.closeLoreModalBtn.addEventListener("click", closeLoreModal);
+    DOM.loreModalBtn?.addEventListener("click", openLoreModal);
+    DOM.closeLoreModalBtn?.addEventListener("click", closeLoreModal);
 
-    DOM.loreForm.addEventListener("submit", (e) => {
+    DOM.loreForm?.addEventListener("submit", (e) => {
       e.preventDefault();
       state.profile = {
         name: DOM.loreFullName?.value.trim() || state.profile.name,
@@ -1770,16 +1826,16 @@ Just reply right here in chat, and I'll automatically log everything into your N
         role: DOM.loreRole?.value.trim() || state.profile.role
       };
       state.friendLore = {
-        hobbies: DOM.loreHobbies.value.trim(),
-        insideJokes: DOM.loreInsideJokes.value.trim(),
-        goals: DOM.loreGoals.value.trim(),
-        customLore: DOM.loreCustom.value.trim()
+        hobbies: DOM.loreHobbies ? DOM.loreHobbies.value.trim() : "",
+        insideJokes: DOM.loreInsideJokes ? DOM.loreInsideJokes.value.trim() : "",
+        goals: DOM.loreGoals ? DOM.loreGoals.value.trim() : "",
+        customLore: DOM.loreCustom ? DOM.loreCustom.value.trim() : ""
       };
       saveLocalState();
       closeLoreModal();
     });
 
-    DOM.restoreDefaultLoreBtn.addEventListener("click", () => {
+    DOM.restoreDefaultLoreBtn?.addEventListener("click", () => {
       if (confirm("Restore factory default profile and friend lore configuration?")) {
         state.profile = { ...DEFAULT_PROFILE };
         state.friendLore = { ...DEFAULT_LORE };
@@ -1817,7 +1873,7 @@ Just reply right here in chat, and I'll automatically log everything into your N
       syncFetchSheets();
     });
 
-    DOM.disconnectSheetsBtn.addEventListener("click", () => {
+    DOM.disconnectSheetsBtn?.addEventListener("click", () => {
       if (confirm("Disconnect NOVA AI cloud memory?")) {
         localStorage.removeItem("amica_sheets_url");
         state.sheetsUrl = "";

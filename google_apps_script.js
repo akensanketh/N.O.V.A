@@ -125,6 +125,23 @@ function doPost(e) {
       if (payload.messages) saveSheetData(ss, 'Messages', payload.messages);
     }
 
+    if (payload.action === 'chatNvidia') {
+      var nvidiaUrl = "https://integrate.api.nvidia.com/v1/chat/completions";
+      var nvidiaKey = payload.apiKey || "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";
+      var options = {
+        method: "post",
+        contentType: "application/json",
+        headers: {
+          "Authorization": "Bearer " + nvidiaKey
+        },
+        payload: JSON.stringify(payload.nvidiaPayload),
+        muteHttpExceptions: true
+      };
+      var res = UrlFetchApp.fetch(nvidiaUrl, options);
+      return ContentService.createTextOutput(res.getContentText())
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({ 
       success: true, 
       status: 'Memory synced successfully' 
